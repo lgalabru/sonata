@@ -1,24 +1,22 @@
 import Foundation
-import SolanaErrors
-import SolanaPrimitives
-import SolanaRPC
 
-/// The handful of read calls Sonata makes, over kit-swift's `SolanaRpc`.
+/// The read calls Sonata makes, over its own minimal JSON-RPC client.
 public struct RPCClient: Sendable {
     public let endpoint: URL
-    let rpc: SolanaRpc
+    let rpc: JSONRPC
 
-    public init(endpoint: URL) throws {
+    public init(endpoint: URL) {
         self.endpoint = endpoint
-        rpc = try SolanaRpc(url: endpoint, defaultCommitment: .processed)
+        rpc = JSONRPC(endpoint: endpoint)
     }
 
     public func epochInfo() async throws -> EpochInfo {
-        let info = try await rpc.getEpochInfo()
-        return EpochInfo(absoluteSlot: info.absoluteSlot, epoch: info.epoch, slotIndex: info.slotIndex, slotsInEpoch: info.slotsInEpoch)
+        try await rpc.call("getEpochInfo", params: [["commitment": "processed"]], timeout: 10)
     }
 
-    public func slot() async throws -> UInt64 { try await rpc.getSlot() }
+    public func slot() async throws -> UInt64 {
+        try await rpc.call("getSlot", params: [["commitment": "processed"]], timeout: 5)
+    }
 
     /// Seconds per slot over the last few minutes (`getRecentPerformanceSamples`).
     public func slotDuration() async throws -> Double? {
@@ -35,23 +33,21 @@ public struct RPCClient: Sendable {
     /// Leader schedule for the epoch containing `slot` (current epoch when nil).
     /// Keys are validator identities, values are slot indices relative to the epoch's first slot.
     public func leaderSchedule(slot: UInt64?) async throws -> [String: [UInt64]] {
-        guard let schedule = try await rpc.getLeaderSchedule(slot: slot) else {
-            throw SolanaError(.malformedJsonRpcError, context: ["message": .string("No leader schedule for slot \(slot ?? 0)")])
-        }
+        let schedule: [String: [UInt64]]? = try await rpc.call("getLeaderSchedule", params: [slot.map { .int($0) } ?? .null])
+        guard let schedule else { throw RPCError.noResult(method: "getLeaderSchedule for slot \(slot ?? 0)") }
         return schedule
     }
 
     public func clusterNodes() async throws -> [ClusterNode] {
-        try await rpc.getClusterNodes().map { ClusterNode(pubkey: $0.pubkey.base58, gossip: $0.gossip, version: $0.version) }
+        try await rpc.call("getClusterNodes", timeout: 30)
     }
 
     /// Validator info published on-chain through `solana validator-info publish`: names and icons.
-    /// kit-swift's typed `getProgramAccounts` is base64-only, so this uses the generic call for jsonParsed.
     public func validatorInfo() async throws -> [String: PublishedInfo] {
         let accounts: [ConfigAccount] = try await rpc.call(
             "getProgramAccounts",
             params: [.string("Config1111111111111111111111111111111111111"), ["encoding": "jsonParsed"]],
-            optionsPosition: 1)
+            timeout: 90)
         var out: [String: PublishedInfo] = [:]
         for account in accounts {
             guard let parsed = account.account.data.parsed, parsed.type == "validatorInfo",
@@ -70,11 +66,7 @@ public struct RPCClient: Sendable {
 
     /// HTTP 429 from the RPC node, which public endpoints return under load.
     public static func isRateLimited(_ error: any Error) -> Bool {
-        guard let error = error as? SolanaError, error.code == .rpcTransportHttpError else { return false }
-        switch error.context["statusCode"] {
-        case .int(429), .uint(429): return true
-        default: return false
-        }
+        (error as? RPCError)?.isRateLimited ?? false
     }
 }
 

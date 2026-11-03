@@ -52,4 +52,3 @@ Sonata reads public data at runtime; none of it is redistributed in this reposit
 - IP locations: [ip-api.com](https://ip-api.com).
 - Validator names and icons: published on-chain by each validator with
   `solana validator-info publish`.
-- [kit-swift](https://github.com/solana-foundation/kit-swift) is a Swift Package dependency.

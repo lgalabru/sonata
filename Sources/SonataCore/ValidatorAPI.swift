@@ -1,18 +1,25 @@
 import Foundation
-import SolanaErrors
-import SolanaPrimitives
-import SolanaRPC
 
 extension RPCClient {
     /// Resolves an identity or a vote account to the validator's profile.
     public func resolveValidator(_ address: String) async throws -> ValidatorProfile? {
-        let accounts = try await rpc.getVoteAccounts(commitment: .confirmed)
+        struct VoteAccount: Decodable {
+            let votePubkey: String
+            let nodePubkey: String
+            let activatedStake: UInt64
+            let commission: UInt8
+        }
+        struct VoteAccounts: Decodable {
+            let current: [VoteAccount]
+            let delinquent: [VoteAccount]
+        }
+        let accounts: VoteAccounts = try await rpc.call("getVoteAccounts", params: [["commitment": "confirmed"]])
         func profile(_ v: VoteAccount, delinquent: Bool) -> ValidatorProfile {
-            ValidatorProfile(identity: v.nodePubkey.base58, vote: v.votePubkey.base58, commission: v.commission,
+            ValidatorProfile(identity: v.nodePubkey, vote: v.votePubkey, commission: v.commission,
                              activatedStake: v.activatedStake, delinquent: delinquent)
         }
         for (list, delinquent) in [(accounts.current, false), (accounts.delinquent, true)] {
-            if let v = list.first(where: { $0.votePubkey.base58 == address || $0.nodePubkey.base58 == address }) {
+            if let v = list.first(where: { $0.votePubkey == address || $0.nodePubkey == address }) {
                 return profile(v, delinquent: delinquent)
             }
         }
@@ -35,12 +42,10 @@ extension RPCClient {
                  "maxSupportedTransactionVersion": 1],
             ])
             return .produced(SlotReport(slot: slot, block: block, leader: leader))
-        } catch let error as SolanaError {
-            switch error.code {
-            case .jsonRpcServerErrorSlotSkipped, .jsonRpcServerErrorLongTermStorageSlotSkipped: return .skipped
-            case .jsonRpcServerErrorBlockNotAvailable: return .unavailable
-            default: throw error
-            }
+        } catch RPCError.rpc(let code, _) where code == RPCError.slotSkipped || code == RPCError.longTermStorageSlotSkipped {
+            return .skipped
+        } catch RPCError.rpc(let code, _) where code == RPCError.blockNotAvailable {
+            return .unavailable
         }
     }
 
@@ -61,12 +66,10 @@ extension RPCClient {
                 ["commitment": "confirmed", "transactionDetails": "none", "rewards": true, "maxSupportedTransactionVersion": 1],
             ])
             return block.rewards?.filter { $0.rewardType == "Fee" && $0.pubkey == leader }.reduce(0) { $0 + $1.lamports } ?? 0
-        } catch let error as SolanaError {
-            switch error.code {
-            case .jsonRpcServerErrorSlotSkipped, .jsonRpcServerErrorLongTermStorageSlotSkipped: return -1
-            case .jsonRpcServerErrorBlockNotAvailable: return nil
-            default: throw error
-            }
+        } catch RPCError.rpc(let code, _) where code == RPCError.slotSkipped || code == RPCError.longTermStorageSlotSkipped {
+            return -1
+        } catch RPCError.rpc(let code, _) where code == RPCError.blockNotAvailable {
+            return nil
         }
     }
 
@@ -104,7 +107,7 @@ extension RPCClient {
         let accounts: [Keyed] = try await rpc.call("getProgramAccounts", params: [
             .string(TipDistribution.program),
             ["encoding": "base64", "filters": [["memcmp": ["offset": 8, "bytes": .string(vote)]]]],
-        ], optionsPosition: 1)
+        ], timeout: 30)
         return accounts.compactMap { a in
             guard let b64 = a.account.data.first, let data = Data(base64Encoded: b64) else { return nil }
             return TipDistribution.parse([UInt8](data), lamports: a.account.lamports)
@@ -112,9 +115,13 @@ extension RPCClient {
     }
 
     public func epochProduction(identity: String, epoch: UInt64) async throws -> EpochProduction {
-        let response = try await rpc.getBlockProduction(identity: try Address(identity))
-        let record = response.value.byIdentity[identity]
-        return EpochProduction(epoch: epoch, leaderSlots: record?.leaderSlots ?? 0, produced: record?.blocksProduced ?? 0)
+        struct Production: Decodable {
+            struct Value: Decodable { let byIdentity: [String: [UInt64]] }  // [leader slots, blocks produced]
+            let value: Value
+        }
+        let response: Production = try await rpc.call("getBlockProduction", params: [["identity": .string(identity)]])
+        let record = response.value.byIdentity[identity] ?? []
+        return EpochProduction(epoch: epoch, leaderSlots: record.first ?? 0, produced: record.dropFirst().first ?? 0)
     }
 }
 

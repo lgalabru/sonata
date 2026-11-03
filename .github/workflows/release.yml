@@ -1,0 +1,188 @@
+name: Release
+
+# Every commit on main that passes CI ships: a GitHub release `v<version>` with the universal
+# app, and the cask in scarce/homebrew-axel moved to it, so `brew upgrade` always lands on the
+# newest main.
+#
+# The version is the VERSION file's major.minor plus the commit count on main (0.1.42), so it
+# only ever grows.
+#
+# Signing: with the Developer ID secrets set (MACOS_CERTIFICATE, MACOS_CERTIFICATE_PWD,
+# KEYCHAIN_PASSWORD, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID), the app is signed with the
+# hardened runtime, notarized and stapled. Without them it ships signed ad hoc, and the cask
+# clears the download quarantine instead.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  workflow_dispatch:
+
+# Releases go out one at a time, in push order, so an older build never overwrites the cask
+# after a newer one.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: v
+        run: echo "version=$(tr -d '[:space:]' < VERSION).$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build, sign and notarize
+    needs: [ci, version]
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    outputs:
+      notarized: ${{ steps.sign.outputs.notarized }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache@v6
+        with:
+          path: .build
+          key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.swift') }}
+          restore-keys: build-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Import the Developer ID certificate
+        id: sign
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+        run: |
+          if [[ -z "$MACOS_CERTIFICATE" || -z "$APPLE_ID" ]]; then
+            echo "No signing secrets: shipping an ad hoc build."
+            echo "notarized=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$keychain"
+          # Add ours to the search list, keeping the others (one path per word, intentionally split).
+          read -r -a others <<< "$(security list-keychains -d user | tr -d '"' | xargs)"
+          security list-keychains -d user -s "$keychain" "${others[@]}"
+          rm "$RUNNER_TEMP/cert.p12"
+          identity=$(security find-identity -v -p codesigning "$keychain" | grep -m1 'Developer ID Application' | sed -E 's/.*"(.*)"/\1/')
+          test -n "$identity"
+          echo "SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "notarized=true" >> "$GITHUB_OUTPUT"
+
+      - name: Bundle (universal)
+        run: UNIVERSAL=1 scripts/bundle.sh
+
+      - name: Notarize and staple
+        if: steps.sign.outputs.notarized == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          ditto -c -k --keepParent build/Sonata.app "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple build/Sonata.app
+          spctl --assess --type execute --verbose=2 build/Sonata.app
+
+      - name: Package
+        run: |
+          scripts/package.sh
+          test -f "build/Sonata-$VERSION.zip"
+
+      # Signed build provenance: `gh attestation verify Sonata-<version>.zip --repo lgalabru/sonata`.
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: build/Sonata-*.zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sonata-release
+          path: build/Sonata-*.zip*
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: sonata-release
+          path: dist
+      - name: Publish
+        run: |
+          {
+            git log -1 --format='%B' "$GITHUB_SHA" | grep -v '^Co-Authored-By:'
+            echo
+            echo '```sh'
+            echo 'brew install --cask scarce/axel/sonata   # or: brew upgrade --cask sonata'
+            echo '```'
+            if [[ "${{ needs.build.outputs.notarized }}" != true ]]; then
+              echo
+              echo 'This build is signed ad hoc (not notarized). Installed with Homebrew it opens normally;'
+              echo 'downloaded by hand, right-click Sonata.app → Open the first time.'
+            fi
+          } > notes.md
+          gh release create "v$VERSION" dist/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Sonata $VERSION" --notes-file notes.md --latest
+
+  tap:
+    needs: [version, build, release]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: sonata
+          sparse-checkout: .github/scripts
+      - uses: actions/checkout@v7
+        with:
+          repository: scarce/homebrew-axel
+          ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
+          path: tap
+      - uses: actions/download-artifact@v8
+        with:
+          name: sonata-release
+          path: dist
+      - name: Move the cask to this release
+        run: |
+          sha=$(cut -d' ' -f1 "dist/Sonata-$VERSION.zip.sha256")
+          mkdir -p tap/Casks
+          sonata/.github/scripts/cask.sh "$VERSION" "$GITHUB_REPOSITORY" "$sha" "${{ needs.build.outputs.notarized }}" > tap/Casks/sonata.rb
+          cd tap
+          git config user.name "sonata release"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/sonata.rb
+          git commit -m "sonata $VERSION"
+          git push
