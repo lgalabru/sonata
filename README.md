@@ -13,7 +13,8 @@
 
 <p align="center">
   <b>The Solana leader schedule, live in your menu bar.<br>
-  Pin your validator: see when it leads next, and what every tenure earned.</b>
+  Pin your validator: see when it leads next, and what every tenure earned.<br>
+  Validators take turns. Sonata takes notes.</b>
 </p>
 
 <p align="center">
@@ -27,7 +28,8 @@
 
 Sonata follows the leader schedule as it plays: who's producing blocks right now, who's next,
 and where they are on the map. Pin your validator, and the menu bar becomes a countdown to
-your next tenure, with what you've earned beneath it.
+your next tenure, with what you've earned beneath it. And every leader change plays a note, so
+the whole network performs one piece, on every Mac running Sonata at once.
 
 ```
 ◎ 00:42
@@ -64,10 +66,15 @@ the next leaders. Validators wear their own icons, published on-chain.
 
 ### 🎹 Every epoch has a song
 
-Each leader change plays the next note of the epoch's song on a grand piano. The note comes
-from the leader schedule itself, so every Sonata, everywhere, plays the same song in step with
-the network. The playlist starts with one piece, Bach's Prelude in C major (BWV 846), whose
-endless arpeggio was made for this. Mute it from the panel's speaker button.
+Proof of History, in the key of C. Each leader change plays the next note of the epoch's song
+on a grand piano, and the note comes from the leader schedule itself, so every Sonata,
+everywhere, plays the same note at the same moment (within a few tens of milliseconds). No
+server, no sync: the schedule is the score.
+
+The playlist starts with one piece, Bach's Prelude in C major (BWV 846): one broken chord per
+bar, one note per leader, as if he'd seen it coming. Each epoch takes the next song in the
+playlist; public-domain pieces are welcome. Mute it with the speaker button in the panel,
+the menu bar's right-click menu, or Settings → Music, where the volume lives too.
 
 ### 🖥️ On your desktop, too
 
@@ -89,9 +96,11 @@ brew install --cask scarce/axel/sonata
 
 Sonata lives in the menu bar: click the Solana mark for the panel, right-click it for
 Settings. Until releases are notarized, macOS asks once: allow Sonata in System Settings →
-Privacy & Security → **Open Anyway**. Every commit on `main` that passes CI is a release, so `brew upgrade --cask sonata`
-always brings the newest build. Releases are universal (Apple silicon and Intel) and need
-macOS 15 or later.
+Privacy & Security → **Open Anyway**.
+
+Every commit on `main` that passes CI is a release, so `brew upgrade --cask sonata` always
+brings the newest build. Releases are universal (Apple silicon and Intel) and need macOS 15
+or later.
 
 Or build it yourself with Swift 6.2 (Xcode 26 or later):
 
@@ -112,21 +121,22 @@ makes it a matter of minutes.
 ## Development
 
 ```sh
-make test       # unit tests: schedules, the slot clock, the map, rewards and earnings maths
+make test       # unit tests: schedules, the slot clock, the map, rewards, earnings and the music
 make run        # builds build/Sonata.app and opens it
 make ci         # what CI runs: build, tests, the universal bundle and a smoke test
 ```
 
 Pull requests run [CI](.github/workflows/ci.yml) on macOS 26: a release build with warnings as
-errors, the tests, a universal app bundle that's checked and launched, and the zipped app as
-an artifact. Merges to `main` run [the release](.github/workflows/release.yml): the same
-checks, then a signed (and, with Developer ID secrets, notarized) build with provenance
-attestation, a GitHub release, and the cask in
-[scarce/homebrew-axel](https://github.com/scarce/homebrew-axel) moved to it.
+errors, the tests, a universal app bundle that's checked and launched, the cask linted with
+`brew style`, and the zipped app as an artifact. Merges to `main` run
+[the release](.github/workflows/release.yml): the same checks, then a signed (and, with
+Developer ID secrets, notarized) build with provenance attestation, a GitHub release, and the
+cask in [scarce/homebrew-axel](https://github.com/scarce/homebrew-axel) moved to it.
 
-`Sources/SonataCore` holds the RPC, schedule, caching, rewards and earnings logic, with no UI;
-`Sources/Sonata` is the app: the status item and panel (AppKit), and the SwiftUI cards, map,
-desktop widget and settings. The binary renders itself for review:
+Sonata has no dependencies. `Sources/SonataCore` holds the JSON-RPC client, schedules,
+caching, rewards, earnings and the playlist (`Music.swift`), with no UI; `Sources/Sonata` is
+the app: the status item and panel (AppKit), the SwiftUI cards, map, desktop widget and
+settings, and the `Conductor` that plays the piano. The binary renders itself for review:
 
 ```sh
 build/Sonata.app/Contents/MacOS/Sonata --snapshot panel.png --dark        # panel and desktop widget
