@@ -66,6 +66,22 @@ jobs:
       - name: Package
         run: scripts/package.sh
 
+      # The cask the release would publish, linted the way Homebrew lints casks.
+      - name: Lint the cask
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_FROM_API: '1'
+        run: |
+          brew tap-new --no-git local/sonata-ci
+          tap="$(brew --repository local/sonata-ci)"
+          mkdir -p "$tap/Casks"
+          sha=$(cut -d' ' -f1 build/Sonata-*.zip.sha256)
+          for notarized in false true; do
+            .github/scripts/cask.sh "0.0.${{ github.run_number }}" "$GITHUB_REPOSITORY" "$sha" "$notarized" > "$tap/Casks/sonata.rb"
+            ruby -c "$tap/Casks/sonata.rb"
+            brew style --cask local/sonata-ci/sonata
+          done
+
       - uses: actions/upload-artifact@v7
         with:
           name: sonata-${{ github.sha }}
