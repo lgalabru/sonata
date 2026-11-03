@@ -115,7 +115,7 @@ struct PressStyle: ButtonStyle {
     }
 }
 
-/// Fine graduated ticks, lit up to `value` (0 … 1), as topophany's meters.
+/// Fine graduated ticks, lit up to `value` (0 … 1).
 struct TickMeter: View {
     var value: Double
     var p: Palette

@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// The packed 0.5° land bitmap shared with topophany's world map.
+/// The packed 0.5° land bitmap, rasterized from Natural Earth (LandMaskData.swift).
 public struct LandMask: Sendable {
     public static let shared = LandMask()
     public static let width = 720, height = 360

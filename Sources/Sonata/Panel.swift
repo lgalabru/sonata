@@ -6,7 +6,7 @@ struct PanelActions {
     var quit: () -> Void = {}
 }
 
-/// The panel: cards on glass, as topophany-bar's Native look.
+/// The panel: cards on glass.
 /// The root reads only what changes per leader; slot ticks are read by the
 /// small views that show them.
 struct PanelRoot: View {

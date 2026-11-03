@@ -142,8 +142,8 @@ build/Sonata.app/Contents/MacOS/Sonata --settings-snapshot settings.png   # the 
 build/Sonata.app/Contents/MacOS/Sonata --menubar-snapshot menubar.png     # the menu bar readout
 ```
 
-The look follows [topophany-bar](https://github.com/WhitenWhiten/topophany-bar)'s Native theme;
-the land bitmap comes from [topophany](https://github.com/WhitenWhiten/topophany).
+The map's land is rasterized from [Natural Earth](https://www.naturalearthdata.com)'s public
+domain 1:110m polygons by `scripts/gen-landmask.py`.
 
 ## License
 
