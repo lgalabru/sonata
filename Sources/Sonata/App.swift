@@ -8,6 +8,7 @@ enum Main {
     static let delegate = AppDelegate()
 
     static func main() {
+        SettingsMigration.run()  // before anything reads a setting
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         app.delegate = delegate
@@ -542,5 +543,21 @@ final class PendingResize {
                 self.apply(latest)
             }
         }
+    }
+}
+
+/// Sonata's bundle identifier was dev.sonata.Sonata; it's sh.scarce.Sonata now. Settings live in
+/// a domain named after it, so the first launch under the new name copies the old ones over:
+/// the pinned validator, the RPC, the earnings period, mute, window positions.
+enum SettingsMigration {
+    static let oldDomain = "dev.sonata.Sonata"
+    static let doneKey = "migratedSettingsFrom"
+
+    static func run(defaults: UserDefaults = .standard, current: String? = Bundle.main.bundleIdentifier) {
+        guard let current, current != oldDomain, defaults.string(forKey: doneKey) == nil else { return }
+        defer { defaults.set(oldDomain, forKey: doneKey) }
+        guard let old = defaults.persistentDomain(forName: oldDomain), !old.isEmpty else { return }
+        let existing = defaults.persistentDomain(forName: current) ?? [:]
+        for (key, value) in old where existing[key] == nil { defaults.set(value, forKey: key) }
     }
 }

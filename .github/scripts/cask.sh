@@ -18,11 +18,12 @@ cask "sonata" do
 
   app "Sonata.app"
 
-  uninstall quit: "dev.sonata.Sonata"
+  uninstall quit: "sh.scarce.Sonata"
 
   zap trash: [
     "~/Library/Caches/sonata",
     "~/Library/Preferences/dev.sonata.Sonata.plist",
+    "~/Library/Preferences/sh.scarce.Sonata.plist",
   ]
 RUBY
 
