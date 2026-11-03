@@ -1,5 +1,8 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 import PackageDescription
+
+// Sonata's own targets build with warnings as errors (CI too); dependencies don't.
+let strict: [SwiftSetting] = [.treatAllWarnings(as: .error)]
 
 let package = Package(
     name: "Sonata",
@@ -13,8 +16,8 @@ let package = Package(
     targets: [
         .target(name: "SonataCore", dependencies: [
             .product(name: "SolanaRPC", package: "kit-swift"),
-        ]),
-        .executableTarget(name: "Sonata", dependencies: ["SonataCore"]),
-        .testTarget(name: "SonataCoreTests", dependencies: ["SonataCore"]),
+        ], swiftSettings: strict),
+        .executableTarget(name: "Sonata", dependencies: ["SonataCore"], swiftSettings: strict),
+        .testTarget(name: "SonataCoreTests", dependencies: ["SonataCore"], swiftSettings: strict),
     ]
 )
