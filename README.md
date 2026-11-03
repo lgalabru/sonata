@@ -32,8 +32,8 @@ your next tenure, with what you've earned beneath it. And every leader change pl
 the whole network performs one piece, on every Mac running Sonata at once.
 
 ```sh
-brew trust scarce/axel
-brew install --cask scarce/axel/sonata
+brew trust scarce/taps
+brew install --cask scarce/taps/sonata
 ```
 
 ## Key features
@@ -127,7 +127,7 @@ errors, the tests, a universal app bundle that's checked and launched, the cask 
 `brew style`, and the zipped app as an artifact. Merges to `main` run
 [the release](.github/workflows/release.yml): the same checks, then a signed (and, with
 Developer ID secrets, notarized) build with provenance attestation, a GitHub release, and the
-cask in [scarce/homebrew-axel](https://github.com/scarce/homebrew-axel) moved to it.
+cask in [scarce/homebrew-taps](https://github.com/scarce/homebrew-taps) moved to it.
 
 Sonata has no dependencies. `Sources/SonataCore` holds the JSON-RPC client, schedules,
 caching, rewards, earnings and the playlist (`Music.swift`), with no UI; `Sources/Sonata` is

@@ -1,7 +1,7 @@
 name: Release
 
 # Every commit on main that passes CI ships: a GitHub release `v<version>` with the universal
-# app, and the cask in scarce/homebrew-axel moved to it, so `brew upgrade` always lands on the
+# app, and the cask in scarce/homebrew-taps moved to it, so `brew upgrade` always lands on the
 # newest main.
 #
 # The version is the VERSION file's major.minor plus the commit count on main (0.1.42), so it
@@ -144,7 +144,7 @@ jobs:
             git log -1 --format='%B' "$GITHUB_SHA" | grep -v '^Co-Authored-By:'
             echo
             echo '```sh'
-            echo 'brew install --cask scarce/axel/sonata   # or: brew upgrade --cask sonata'
+            echo 'brew install --cask scarce/taps/sonata   # or: brew upgrade --cask sonata'
             echo '```'
             if [[ "${{ needs.build.outputs.notarized }}" != true ]]; then
               echo
@@ -168,7 +168,7 @@ jobs:
           sparse-checkout: .github/scripts
       - uses: actions/checkout@v7
         with:
-          repository: scarce/homebrew-axel
+          repository: scarce/homebrew-taps
           ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
           path: tap
       - uses: actions/download-artifact@v8
