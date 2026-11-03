@@ -13,7 +13,7 @@
 	<key>CFBundleVersion</key><string>1</string>
 	<key>LSMinimumSystemVersion</key><string>15.0</string>
 	<key>LSUIElement</key><true/>
-	<key>NSHumanReadableCopyright</key><string>Map data: Natural Earth (public domain) via topophany (MIT).</string>
+	<key>NSHumanReadableCopyright</key><string>© 2026 Scarce. Licensed under Apache-2.0.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- ip-api.com's free batch geolocation endpoint is HTTP only. -->
