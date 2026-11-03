@@ -132,7 +132,9 @@ cask in [scarce/homebrew-taps](https://github.com/scarce/homebrew-taps) moved to
 Sonata has no dependencies. `Sources/SonataCore` holds the JSON-RPC client, schedules,
 caching, rewards, earnings and the playlist (`Music.swift`), with no UI; `Sources/Sonata` is
 the app: the status item and panel (AppKit), the SwiftUI cards, map, desktop widget and
-settings, and the `Conductor` that plays the piano. The binary renders itself for review:
+settings, and the `Conductor` that plays the piano. The app icon is `Resources/AppIcon.icon` (Icon Composer's format), made from the note glyph
+by `scripts/make-icon.py` and compiled by `actool` when the app is bundled. The binary renders
+itself for review:
 
 ```sh
 build/Sonata.app/Contents/MacOS/Sonata --snapshot panel.png --dark        # panel and desktop widget

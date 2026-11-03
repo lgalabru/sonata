@@ -1,0 +1,17 @@
+{
+  "fill-specializations": [
+    { "value": { "solid": "srgb:0.98000,0.97500,0.99000,1.00000" } },
+    { "appearance": "dark", "value": { "solid": "srgb:0.08627,0.09020,0.11765,1.00000" } }
+  ],
+  "groups": [
+    {
+      "layers": [
+        { "glass": false, "image-name": "note.png", "name": "note" }
+      ],
+      "shadow": { "kind": "neutral", "opacity": 0.5 },
+      "specular": true,
+      "translucency": { "enabled": false, "value": 0 }
+    }
+  ],
+  "supported-platforms": { "squares": ["macOS"] }
+}
