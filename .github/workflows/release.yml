@@ -38,7 +38,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: v
@@ -58,9 +58,9 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .build
           key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.swift') }}
@@ -117,11 +117,11 @@ jobs:
           test -f "build/Sonata-$VERSION.zip"
 
       # Signed build provenance: `gh attestation verify Sonata-<version>.zip --repo lgalabru/sonata`.
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: build/Sonata-*.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sonata-release
           path: build/Sonata-*.zip*
@@ -133,8 +133,8 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: sonata-release
           path: dist
@@ -162,16 +162,16 @@ jobs:
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           path: sonata
           sparse-checkout: .github/scripts
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: scarce/homebrew-axel
           ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
           path: tap
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: sonata-release
           path: dist
