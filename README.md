@@ -31,9 +31,9 @@ and where they are on the map. Pin your validator, and the menu bar becomes a co
 your next tenure, with what you've earned beneath it. And every leader change plays a note, so
 the whole network performs one piece, on every Mac running Sonata at once.
 
-```
-◎ 00:42
-≈◎44.52
+```sh
+brew trust scarce/axel
+brew install --cask scarce/axel/sonata
 ```
 
 ## Key features
@@ -89,14 +89,10 @@ cached on your Mac, and nothing is sent anywhere but the public sources listed i
 
 ## Install
 
-```sh
-brew trust scarce/axel                  # Homebrew asks you to trust third-party taps once
-brew install --cask scarce/axel/sonata
-```
-
-Sonata lives in the menu bar: click the Solana mark for the panel, right-click it for
-Settings. Until releases are notarized, macOS asks once: allow Sonata in System Settings →
-Privacy & Security → **Open Anyway**.
+The two commands above are all it takes: `brew trust` is Homebrew's one-time step for
+third-party taps. Sonata lives in the menu bar: click the Solana mark for the panel,
+right-click it for Settings. Until releases are notarized, macOS asks once: allow Sonata in
+System Settings → Privacy & Security → **Open Anyway**.
 
 Every commit on `main` that passes CI is a release, so `brew upgrade --cask sonata` always
 brings the newest build. Releases are universal (Apple silicon and Intel) and need macOS 15
