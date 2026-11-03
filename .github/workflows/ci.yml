@@ -1,0 +1,82 @@
+name: CI
+
+# Pull requests and branches run this directly; the release workflow calls it before every build.
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build, test and smoke-test the app
+    # Sonata uses the macOS 26 SDK (Liquid Glass, behind availability checks).
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: spm-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Resolved dependencies are committed
+        run: |
+          swift package resolve
+          git diff --exit-code Package.resolved
+
+      # Sonata's own targets treat every warning as an error (Package.swift).
+      - name: Build
+        run: swift build -c release
+
+      - name: Test
+        run: swift test --parallel
+
+      - name: Bundle (universal)
+        run: UNIVERSAL=1 VERSION=0.0.${{ github.run_number }} scripts/bundle.sh
+
+      - name: Check the bundle
+        run: |
+          app=build/Sonata.app
+          plutil -lint "$app/Contents/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$app/Contents/Info.plist")" = true
+          lipo -archs "$app/Contents/MacOS/Sonata" | tr ' ' '\n' | sort | paste -sd' ' - | grep -qx 'arm64 x86_64'
+          codesign --verify --deep --strict --verbose=2 "$app"
+
+      # The app launches, draws its menu bar readout, and quits.
+      - name: Smoke test
+        run: |
+          build/Sonata.app/Contents/MacOS/Sonata --menubar-snapshot "$RUNNER_TEMP/menubar.png" &
+          pid=$!
+          for _ in $(seq 60); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 1
+          done
+          if kill -0 "$pid" 2>/dev/null; then kill "$pid"; echo "Sonata didn't quit"; exit 1; fi
+          wait "$pid"
+          test -s "$RUNNER_TEMP/menubar.png"
+
+      - name: Package
+        run: scripts/package.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sonata-${{ github.sha }}
+          path: |
+            build/Sonata-*.zip
+            ${{ runner.temp }}/menubar.png
+          retention-days: 14

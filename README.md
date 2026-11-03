@@ -3,8 +3,10 @@
 </div>
 
 <p align="center">
+  <a href="https://github.com/lgalabru/sonata/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/lgalabru/sonata?color=14f195"></a>
+  <a href="https://github.com/lgalabru/sonata/actions/workflows/release.yml"><img alt="Release" src="https://github.com/lgalabru/sonata/actions/workflows/release.yml/badge.svg"></a>
   <img alt="macOS 15+" src="https://img.shields.io/badge/platform-macOS%2015%2B-black">
-  <img alt="Swift 6" src="https://img.shields.io/badge/swift-6-f05138">
+  <img alt="Swift 6.2" src="https://img.shields.io/badge/swift-6.2-f05138">
   <img alt="Solana" src="https://img.shields.io/badge/solana-mainnet-9945ff">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-green"></a>
 </p>
@@ -73,17 +75,21 @@ cached on your Mac, and nothing is sent anywhere but the public sources listed i
 
 ## Install
 
-Sonata builds from source with Swift 6 (Xcode 16 or later) on macOS 15 or later:
-
 ```sh
-git clone https://github.com/lgalabru/sonata
-cd sonata
-make install    # builds Sonata.app and copies it into /Applications
-open /Applications/Sonata.app
+brew install --cask scarce/axel/sonata
 ```
 
-The app is signed ad hoc, so the first launch may need a right-click → **Open**. Sonata lives
-in the menu bar: click the Solana mark for the panel, right-click it for Settings.
+Sonata lives in the menu bar: click the Solana mark for the panel, right-click it for
+Settings. Every commit on `main` that passes CI is a release, so `brew upgrade --cask sonata`
+always brings the newest build. Releases are universal (Apple silicon and Intel) and need
+macOS 15 or later.
+
+Or build it yourself with Swift 6.2 (Xcode 26 or later):
+
+```sh
+git clone https://github.com/lgalabru/sonata && cd sonata
+make install    # builds Sonata.app and copies it into /Applications
+```
 
 The public mainnet RPC works out of the box. It allows only a few `getBlock` calls per
 second, so the first pass over an epoch's blocks is slow; a private RPC (Settings → Network)
@@ -99,7 +105,15 @@ makes it a matter of minutes.
 ```sh
 make test       # unit tests: schedules, the slot clock, the map, rewards and earnings maths
 make run        # builds build/Sonata.app and opens it
+make ci         # what CI runs: build, tests, the universal bundle and a smoke test
 ```
+
+Pull requests run [CI](.github/workflows/ci.yml) on macOS 26: a release build with warnings as
+errors, the tests, a universal app bundle that's checked and launched, and the zipped app as
+an artifact. Merges to `main` run [the release](.github/workflows/release.yml): the same
+checks, then a signed (and, with Developer ID secrets, notarized) build with provenance
+attestation, a GitHub release, and the cask in
+[scarce/homebrew-axel](https://github.com/scarce/homebrew-axel) moved to it.
 
 `Sources/SonataCore` holds the RPC, schedule, caching, rewards and earnings logic, with no UI;
 `Sources/Sonata` is the app: the status item and panel (AppKit), and the SwiftUI cards, map,
