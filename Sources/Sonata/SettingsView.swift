@@ -12,7 +12,8 @@ enum SettingsWindow {
         tabs.tabStyle = .toolbar
         tabs.transitionOptions = [.crossfade, .allowUserInteraction]
         func pane(_ title: String, _ symbol: String, _ view: some View) {
-            let host = NSHostingController(rootView: view.frame(width: 500).fixedSize(horizontal: false, vertical: true))
+            let host = NSHostingController(rootView: view.frame(width: 500).fixedSize(horizontal: false, vertical: true)
+                .environment(Main.delegate.conductor))
             host.sizingOptions = [.preferredContentSize]
             host.title = title
             let item = NSTabViewItem(viewController: host)
@@ -71,9 +72,10 @@ private struct GeneralPane: View {
                 Text("Menu Bar")
             } footer: {
                 Footnote(watch.isPinned
-                    ? "With a validator pinned, the menu bar shows when it leads next, in seconds, and what it has earned: block rewards, MEV commission and inflation commission. ≈ means blocks are still being read."
+                    ? "With a validator pinned, the menu bar counts down to its next tenure and shows what it has earned: block rewards, MEV commission and inflation commission. ≈ means blocks are still being read."
                     : "Pin a validator in the Validator pane to see its countdown and earnings here instead.")
             }
+            MusicSection()
             if watch.isPinned {
                 Section {
                     Picker("After each tenure", selection: $alerts) {
@@ -99,6 +101,34 @@ private struct GeneralPane: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// The epoch's song: on or off, and how loud.
+private struct MusicSection: View {
+    @Environment(Conductor.self) private var conductor
+
+    var body: some View {
+        @Bindable var conductor = conductor
+        Section {
+            Toggle("Play the epoch's song", isOn: Binding(get: { !conductor.muted }, set: { conductor.muted = !$0 }))
+            LabeledContent("Volume") {
+                HStack(spacing: 8) {
+                    Image(systemName: "speaker.fill").foregroundStyle(.secondary)
+                    Slider(value: $conductor.volume, in: 0...1)
+                    Image(systemName: "speaker.wave.3.fill").foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: 220)
+            }
+            .disabled(conductor.muted)
+            if let position = conductor.position {
+                LabeledContent("Now playing", value: "\(position.song.title) · \(position.song.composer)")
+            }
+        } header: {
+            Text("Music")
+        } footer: {
+            Footnote("Every epoch has a song, and every leader change plays its next note. The note comes from the leader schedule, so every Sonata plays the same song, in step.")
+        }
     }
 }
 

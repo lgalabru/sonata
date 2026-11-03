@@ -62,6 +62,13 @@ Every leader as a dot on a dithered world map, sized by its share of slots. The 
 follows the current leader at 9×, a ring fills as its slots are produced, and arcs lead to
 the next leaders. Validators wear their own icons, published on-chain.
 
+### 🎹 Every epoch has a song
+
+Each leader change plays the next note of the epoch's song on a grand piano. The note comes
+from the leader schedule itself, so every Sonata, everywhere, plays the same song in step with
+the network. The playlist starts with one piece, Bach's Prelude in C major (BWV 846), whose
+endless arpeggio was made for this. Mute it from the panel's speaker button.
+
 ### 🖥️ On your desktop, too
 
 The same live map as a widget-style card beneath your windows. Drag it anywhere; it follows

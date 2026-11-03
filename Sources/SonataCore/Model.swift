@@ -110,7 +110,7 @@ public final class SonataModel {
         tasks.append(Task { [weak self] in
             while !Task.isCancelled {
                 self?.tick()
-                try? await Task.sleep(for: .milliseconds(100))
+                try? await Task.sleep(for: .milliseconds(25))  // handovers land within 25 ms, for the music
             }
         })
     }
@@ -159,6 +159,23 @@ public final class SonataModel {
     public func estimatedSlot(at date: Date) -> Double? { clock?.estimate(at: date) }
 
     public func isClockStale(at date: Date) -> Bool { clock?.isStale(at: date) ?? true }
+
+    /// Each epoch's leader-change slots, computed once per schedule.
+    @ObservationIgnored private var changeSlots: [UInt64: [UInt64]] = [:]
+
+    /// Which step of the epoch's song plays at `slot`: the same on every install.
+    public func songPosition(at slot: UInt64) -> SongPosition? {
+        guard let schedule = book.schedule(containing: slot) else { return nil }
+        let changes: [UInt64]
+        if let cached = changeSlots[schedule.epoch] {
+            changes = cached
+        } else {
+            changes = schedule.leaderChanges()
+            changeSlots = changeSlots.filter { $0.key + 2 > schedule.epoch }
+            changeSlots[schedule.epoch] = changes
+        }
+        return SongPosition.at(slot, epoch: schedule.epoch, changes: changes)
+    }
 
     public func pin(_ identity: String) -> ValidatorPin {
         pins[identity] ?? ValidatorPin(identity: identity, name: names[identity], location: nil, lat: nil, lon: nil,

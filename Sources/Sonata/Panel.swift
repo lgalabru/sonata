@@ -78,17 +78,53 @@ struct PanelBackground: View {
 private struct Header: View {
     let model: SonataModel
     var p: Palette
+    @Environment(Conductor.self) private var conductor
 
     var body: some View {
         HStack(spacing: 7) {
             SolanaMark().fill(SolanaMark.gradient).frame(width: 15, height: 13)
+            NowPlaying(conductor: conductor, p: p)
             Spacer(minLength: 6)
             if let epoch = model.epoch {
                 Text("Epoch \(epoch.epoch.formatted(.number.grouping(.never)))").font(.ui(11, .medium)).foregroundStyle(p.l3)
             }
+            Button {
+                conductor.muted.toggle()
+            } label: {
+                Image(systemName: conductor.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(conductor.muted ? p.l3 : p.l2)
+                    .frame(width: 22, height: 18)
+                    .contentTransition(.symbolEffect(.replace))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressStyle())
+            .help(conductor.muted ? "Play the epoch's song" : "Mute")
+            .accessibilityLabel(conductor.muted ? "Unmute music" : "Mute music")
         }
         .padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 1)
     }
+}
+
+/// The epoch's song and where it is: the same note on every install.
+private struct NowPlaying: View {
+    let conductor: Conductor
+    var p: Palette
+
+    var body: some View {
+        if let position = conductor.position {
+            HStack(spacing: 4) {
+                Image(systemName: "music.note").font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(conductor.muted ? p.l3 : p.accent2)
+                    .symbolEffect(.pulse, options: .repeating, isActive: !conductor.muted)
+                Text("\(position.song.composer) · \(shortTitle(position.song.title))")
+                    .font(.ui(10.5, .medium)).foregroundStyle(p.l3).lineLimit(1)
+            }
+            .help("\(position.song.title), \(position.song.composer): note \(position.step + 1) of \(position.song.steps.count). Every leader change plays the next note, in step on every Sonata.")
+        }
+    }
+
+    private func shortTitle(_ t: String) -> String { t.components(separatedBy: ",").first ?? t }
 }
 
 // MARK: Leader

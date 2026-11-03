@@ -19,6 +19,7 @@ enum Main {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = SonataModel()
     lazy var watch = ValidatorWatch(model: model)
+    lazy var conductor = Conductor(model: model)
     private var statusItem: StatusItemController?
     private var panel: PanelController?
     private var settings: NSWindowController?
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         model.start()
         watch.start()
+        _ = conductor
         let actions = PanelActions(openSettings: { [weak self] in self?.openSettings() },
                                    quit: { NSApp.terminate(nil) })
         let panel = PanelController(model: model, watch: watch, actions: actions)
@@ -106,6 +108,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let desktop = NSMenuItem(title: "Show Map on Desktop", action: #selector(toggleDesktop(_:)), keyEquivalent: "")
         desktop.target = self
         menu.addItem(desktop)
+        let mute = NSMenuItem(title: "Mute Music", action: #selector(toggleMute(_:)), keyEquivalent: "")
+        mute.target = self
+        menu.addItem(mute)
         menu.delegate = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Sonata", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -113,6 +118,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openSettingsItem() { openSettings() }
+
+    @objc private func toggleMute(_ sender: NSMenuItem) { conductor.muted.toggle() }
 
     @objc private func toggleDesktop(_ sender: NSMenuItem) {
         UserDefaults.standard.set(!DesktopWidgetController.isEnabled, forKey: DesktopWidgetController.defaultsKey)
@@ -136,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.items.first { $0.action == #selector(toggleDesktop(_:)) }?.state = DesktopWidgetController.isEnabled ? .on : .off
+        menu.items.first { $0.action == #selector(toggleMute(_:)) }?.state = conductor.muted ? .on : .off
     }
 }
 
@@ -429,8 +437,10 @@ final class KeyPanel: NSPanel {
 /// re-measuring the view graph on every data change.
 @MainActor
 func makePanelHost(model: SonataModel, watch: ValidatorWatch, actions: PanelActions, onSize: @escaping (CGSize) -> Void) -> NSHostingController<AnyView> {
+    let conductor = Main.delegate.conductor
     let resizer = PendingResize(onSize)
     let root = PanelRoot(model: model, watch: watch, actions: actions)
+        .environment(conductor)
         .fixedSize()
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
             // Never resize the window inside SwiftUI's layout pass: that re-enters text

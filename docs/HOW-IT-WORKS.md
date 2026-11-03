@@ -63,6 +63,20 @@ Because ip-api.com's free tier is HTTP only, `Info.plist` has an ATS exception f
 domain. Locations come from a validator's gossip IP, so they show the datacenter, not the
 operator.
 
+## Music
+
+Every epoch plays a song from the playlist (`Sources/SonataCore/Music.swift`):
+`playlist[epoch % count]`. A song is a list of steps, one per leader change; each step strikes
+notes that ring for a number of steps. The step playing at a slot is the number of leader
+changes since the epoch's first slot, modulo the song's length, so it depends only on the
+leader schedule, the same for everyone. Installs agree on every note; they're apart only by
+how far their slot clocks are (typically tens of milliseconds).
+
+Sound is macOS's General MIDI grand piano (`gs_instruments.dls`) through `AVAudioEngine`, with
+a little hall reverb. Muted, the engine is stopped.
+
+Songs must be in the public domain (or yours to distribute): the playlist ships in the app.
+
 ## Code layout
 
 - `Sources/SonataCore`: RPC, schedule storage and lookup, disk cache, geolocation, slot clock,

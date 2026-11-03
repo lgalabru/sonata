@@ -233,9 +233,10 @@ private struct MapViewport: View, @MainActor Animatable {
         GeometryReader { geo in
             let scene = MapScene(input, size: geo.size, p: p, camera: camera)
             ZStack {
-                MapCanvas(scene: scene, p: p)
+                // Each in its own GPU layer: the beacon's pulse redraws itself, never the land.
+                MapCanvas(scene: scene, p: p).drawingGroup()
                 if let current = input.route.first {
-                    Beacon(scene: scene, identity: current.identity, model: model, p: p)
+                    Beacon(scene: scene, identity: current.identity, model: model, p: p).drawingGroup()
                 }
                 // Leaders wear their icons: the next ones small, the current one in its ring.
                 ForEach(Array(zip(input.route, scene.route).enumerated().reversed()), id: \.element.0.identity) { i, pair in
@@ -388,38 +389,40 @@ private struct MapCanvas: View {
     /// the sea so coasts fray instead of stepping; brighter near places,
     /// fading toward the edges, kept clear of marks and labels.
     func drawLand(_ ctx: GraphicsContext, size: CGSize, clear: [CGRect]) {
-        let pitch = 2.6, dot = 1.3, samples = 3
-        let mask = LandMask.shared
-        let cols = Int(size.width / pitch), rows = Int(size.height / pitch)
-        guard cols > 0, rows > 0, mask.isValid else { return }
-        let x0 = (size.width - Double(cols) * pitch) / 2, y0 = (size.height - Double(rows) * pitch) / 2
+        let pitch = 2.6, dot = 1.3
+        guard LandMask.shared.isValid, size.width > 0, size.height > 0 else { return }
+        // The lattice is pinned to the magnified map, not the screen: as the camera pans the dots
+        // travel with the land (no shimmer), and each dot's coverage is computed once and cached.
+        let off = scene.offset
+        let i0 = Int(((-off.x) / pitch).rounded(.down)), i1 = Int(((size.width - off.x) / pitch).rounded(.up))
+        let j0 = Int(((-off.y) / pitch).rounded(.down)), j1 = Int(((size.height - off.y) / pitch).rounded(.up))
+        let coverage = LandCoverageCache.shared.lattice(for: scene, pitch: pitch)
 
-        // The projection is separable: convert each column and row once.
-        func subsamples(_ start: Double, _ i: Int) -> [Double] {
-            (0..<samples).map { start + Double(i) * pitch + (Double($0) + 0.5) * pitch / Double(samples) }
+        // Places near the view brighten its land: bucketed, so each dot checks only its neighbours.
+        let bucket = 56.0
+        var buckets: [Int: [CGPoint]] = [:]
+        let near = scene.bounds.insetBy(dx: -bucket, dy: -bucket)
+        for s in scene.sites.map(\.point) + scene.route where near.contains(s) {
+            buckets[Int((s.x / bucket).rounded(.down)) &* 4_096 &+ Int((s.y / bucket).rounded(.down)), default: []].append(s)
         }
-        // Fractional mask coordinates, so a magnified coast blends between cells instead of stepping.
-        let colMask = (0..<cols).map { i in subsamples(x0, i).compactMap { scene.longitude(atX: $0).map(LandMask.fractionalColumn) } }
-        let rowMask = (0..<rows).map { j in subsamples(y0, j).compactMap { scene.latitude(atY: $0).map(LandMask.fractionalRow) } }
-
-        // Only places near the view brighten its land.
-        let near = scene.bounds.insetBy(dx: -60, dy: -60)
-        let sites = (scene.sites.map(\.point) + scene.route).filter { near.contains($0) }
         let levels = 8
         var paths = Array(repeating: Path(), count: levels)
-        for j in 0..<rows where !rowMask[j].isEmpty {
-            for i in 0..<cols where !colMask[i].isEmpty {
-                var hits = 0.0
-                for r in rowMask[j] { for c in colMask[i] { hits += mask.land(row: r, column: c) } }
-                guard hits > 0.01 else { continue }
-                let cover = hits / Double(rowMask[j].count * colMask[i].count)
-                guard cover >= Self.bayer(i, j) else { continue }
-                let c = CGPoint(x: x0 + (Double(i) + 0.5) * pitch, y: y0 + (Double(j) + 0.5) * pitch)
+        for j in j0...j1 {
+            for i in i0...i1 {
+                let cover = coverage.value(i, j)
+                guard cover > 0.01, cover >= Self.bayer(i, j) else { continue }
+                let c = CGPoint(x: (Double(i) + 0.5) * pitch + off.x, y: (Double(j) + 0.5) * pitch + off.y)
+                guard c.x > 0, c.x < size.width, c.y > 0, c.y < size.height else { continue }
                 var nearest = Double.infinity
-                for s in sites { nearest = min(nearest, hypot(s.x - c.x, s.y - c.y)) }
+                let bx = Int((c.x / bucket).rounded(.down)), by = Int((c.y / bucket).rounded(.down))
+                for dx in -1...1 {
+                    for dy in -1...1 {
+                        for s in buckets[(bx + dx) &* 4_096 &+ (by + dy)] ?? [] { nearest = min(nearest, hypot(s.x - c.x, s.y - c.y)) }
+                    }
+                }
                 guard nearest > 5.5, !clear.contains(where: { $0.contains(c) }) else { continue }
                 let edge = min(c.x, size.width - c.x, c.y, size.height - c.y)
-                let glow = exp(-nearest / 56)
+                let glow = nearest.isFinite ? exp(-nearest / 56) : 0
                 let a = Self.smoothstep(0, 14, edge) * (0.42 + 0.58 * glow)
                 let level = min(levels - 1, Int(a * Double(levels)))
                 guard level > 0 else { continue }
@@ -433,6 +436,7 @@ private struct MapCanvas: View {
             ctx.fill(path, with: .color(ink.opacity(min(1, strength * (Double(k) + 0.5) / Double(levels) * 1.5))))
         }
     }
+
 
     /// A fold's seam: a dotted rule headed by the degrees it hides, so it's never taken for a coast.
     func drawSeams(_ ctx: GraphicsContext, size: CGSize) {
@@ -511,5 +515,61 @@ private struct Beacon: View {
             }
         }
         .allowsHitTesting(false)
+    }
+}
+
+/// Land coverage per lattice dot, for one projection, size and zoom: computed the first time a
+/// dot is drawn, then looked up, so a panning camera costs lookups instead of mask sampling.
+@MainActor
+final class LandCoverageCache {
+    static let shared = LandCoverageCache()
+
+    struct Key: Hashable {
+        var projection: String
+        var zoom: Int
+    }
+
+    final class Lattice {
+        let scene: MapScene
+        let pitch: Double
+        private var values: [Int: Float] = [:]
+
+        init(scene: MapScene, pitch: Double) {
+            self.scene = scene
+            self.pitch = pitch
+        }
+
+        /// Fraction of land under dot (i, j), from 3×3 subsamples with bilinear mask lookups.
+        func value(_ i: Int, _ j: Int) -> Double {
+            let key = j &* 1_000_003 &+ i
+            if let v = values[key] { return Double(v) }
+            let mask = LandMask.shared
+            var hits = 0.0, n = 0
+            for sy in 0..<3 {
+                let y = (Double(j) + (Double(sy) + 0.5) / 3) * pitch / scene.zoom
+                guard let lat = scene.projection.latitude(atY: y) else { continue }
+                for sx in 0..<3 {
+                    let x = (Double(i) + (Double(sx) + 0.5) / 3) * pitch / scene.zoom
+                    guard let lon = scene.projection.longitude(atX: x) else { continue }
+                    hits += mask.land(row: LandMask.fractionalRow(lat), column: LandMask.fractionalColumn(lon))
+                    n += 1
+                }
+            }
+            let v = n == 0 ? 0 : hits / Double(n)
+            values[key] = Float(v)
+            return v
+        }
+    }
+
+    private var lattices: [Key: Lattice] = [:]
+
+    func lattice(for scene: MapScene, pitch: Double) -> Lattice {
+        // Zoom animations pass through fractional zooms: those get a lattice of their own, briefly.
+        let key = Key(projection: "\(scene.projection)", zoom: Int((scene.zoom * 100).rounded()))
+        if let hit = lattices[key] { return hit }
+        if lattices.count > 6 { lattices.removeAll() }
+        let lattice = Lattice(scene: scene, pitch: pitch)
+        lattices[key] = lattice
+        return lattice
     }
 }
