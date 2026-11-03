@@ -54,8 +54,8 @@ blocks in ~90 minutes); a private RPC (Settings → Network) makes it a matter o
 Slot times are measured (`getRecentPerformanceSamples`, about 215 ms per slot) rather than assumed,
 for countdowns, epoch time left and APYs.
 
-RPC calls go through kit-swift's
-[`SolanaRPC`](https://github.com/solana-foundation/kit-swift/tree/main/Sources/SolanaRPC).
+RPC calls go through Sonata's own small JSON-RPC client (`Sources/SonataCore/JSONRPC.swift`):
+no dependencies, only the read methods listed above.
 The RPC URL can be changed in settings (the gear icon). Each RPC host gets its own cache
 directory, so mainnet and devnet data never mix.
 

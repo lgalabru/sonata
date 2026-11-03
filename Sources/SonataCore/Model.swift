@@ -93,7 +93,9 @@ public final class SonataModel {
         cache = DiskCache.forEndpoint(URL(string: url) ?? URL(string: Self.defaultRPC)!)
     }
 
-    var rpc: RPCClient? { URL(string: rpcURL).flatMap { try? RPCClient(endpoint: $0) } }
+    var rpc: RPCClient? {
+        URL(string: rpcURL).flatMap { $0.scheme == "https" || $0.scheme == "http" ? RPCClient(endpoint: $0) : nil }
+    }
 
     // MARK: Lifecycle
 

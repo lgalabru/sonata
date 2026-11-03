@@ -1,10 +1,8 @@
 name: CI
 
-# Pull requests and branches run this directly; the release workflow calls it before every build.
+# Pull requests run this directly; the release workflow calls it before every build.
 on:
   pull_request:
-  push:
-    branches-ignore: [main]
   workflow_call:
 
 concurrency:
@@ -31,15 +29,10 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: spm-${{ runner.os }}-${{ runner.arch }}-
+          key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.swift') }}
+          restore-keys: build-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: Resolved dependencies are committed
-        run: |
-          swift package resolve
-          git diff --exit-code Package.resolved
-
-      # Sonata's own targets treat every warning as an error (Package.swift).
+      # Every target treats warnings as errors (Package.swift).
       - name: Build
         run: swift build -c release
 

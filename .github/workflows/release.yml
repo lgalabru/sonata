@@ -63,8 +63,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: spm-${{ runner.os }}-${{ runner.arch }}-
+          key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.swift') }}
+          restore-keys: build-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Import the Developer ID certificate
         id: sign

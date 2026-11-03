@@ -1,22 +1,17 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
-// Sonata's own targets build with warnings as errors (CI too); dependencies don't.
+// Every target builds with warnings as errors, here and in CI.
 let strict: [SwiftSetting] = [.treatAllWarnings(as: .error)]
 
 let package = Package(
     name: "Sonata",
-    platforms: [.macOS(.v15)],  // kit-swift's floor
+    platforms: [.macOS(.v15)],
     products: [
         .executable(name: "Sonata", targets: ["Sonata"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/solana-foundation/kit-swift.git", branch: "main"),
-    ],
     targets: [
-        .target(name: "SonataCore", dependencies: [
-            .product(name: "SolanaRPC", package: "kit-swift"),
-        ], swiftSettings: strict),
+        .target(name: "SonataCore", swiftSettings: strict),
         .executableTarget(name: "Sonata", dependencies: ["SonataCore"], swiftSettings: strict),
         .testTarget(name: "SonataCoreTests", dependencies: ["SonataCore"], swiftSettings: strict),
     ]

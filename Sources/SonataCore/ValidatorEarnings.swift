@@ -1,5 +1,4 @@
 import Foundation
-import SolanaRPC
 
 /// Earnings over time for the pinned validator.
 ///
@@ -96,6 +95,7 @@ extension ValidatorWatch {
             let mine = schedule.windows(of: profile?.identity ?? "")
             let now = model.tickSlot ?? info.absoluteSlot
             let due = mine.filter { $0.endSlot + 64 <= now }.flatMap { Array($0.firstSlot..<$0.endSlot) }
+            if slotRewards[epoch] == nil { slotRewards[epoch] = loadRewards(epoch) }  // what earlier runs read
             let read = slotRewards[epoch] ?? [:]
             let produced = read.values.filter { $0 >= 0 }
             var block = UInt64(produced.reduce(0, +))
