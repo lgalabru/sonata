@@ -76,11 +76,13 @@ cached on your Mac, and nothing is sent anywhere but the public sources listed i
 ## Install
 
 ```sh
+brew trust scarce/axel                  # Homebrew asks you to trust third-party taps once
 brew install --cask scarce/axel/sonata
 ```
 
 Sonata lives in the menu bar: click the Solana mark for the panel, right-click it for
-Settings. Every commit on `main` that passes CI is a release, so `brew upgrade --cask sonata`
+Settings. Until releases are notarized, macOS asks once: allow Sonata in System Settings →
+Privacy & Security → **Open Anyway**. Every commit on `main` that passes CI is a release, so `brew upgrade --cask sonata`
 always brings the newest build. Releases are universal (Apple silicon and Intel) and need
 macOS 15 or later.
 

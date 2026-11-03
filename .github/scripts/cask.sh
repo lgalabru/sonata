@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prints the Homebrew cask for a release.
+# Prints the Homebrew cask for a release (stanzas in the order `brew style` expects).
 #   cask.sh <version> <owner/repo> <sha256> <notarized: true|false>
 set -euo pipefail
 version=$1 repo=$2 sha=$3 notarized=$4
@@ -14,22 +14,9 @@ cask "sonata" do
   desc "Solana leader schedule and validator earnings in the menu bar"
   homepage "https://github.com/$repo"
 
-  depends_on macos: ">= :sequoia"
+  depends_on macos: :sequoia
 
   app "Sonata.app"
-RUBY
-
-if [[ "$notarized" != true ]]; then
-  cat <<'RUBY'
-
-  # This build is signed ad hoc, not notarized: clear the download quarantine so it opens.
-  postflight do
-    system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{appdir}/Sonata.app"]
-  end
-RUBY
-fi
-
-cat <<'RUBY'
 
   uninstall quit: "dev.sonata.Sonata"
 
@@ -37,5 +24,16 @@ cat <<'RUBY'
     "~/Library/Caches/sonata",
     "~/Library/Preferences/dev.sonata.Sonata.plist",
   ]
-end
 RUBY
+
+if [[ "$notarized" != true ]]; then
+  cat <<'RUBY'
+
+  caveats <<~EOS
+    This build of Sonata is signed ad hoc, not notarized. If macOS won't open it,
+    allow it once in System Settings → Privacy & Security → Open Anyway.
+  EOS
+RUBY
+fi
+
+echo "end"
